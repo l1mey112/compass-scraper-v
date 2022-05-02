@@ -1,0 +1,16 @@
+[cookies]
+cpsdid                       = ''
+cpssid_cesis_catholic_edu_au = ''
+ASP_NET_SessionId            = ''
+SamlSessionIndex             = ''
+
+[panel]
+sizes   = [8, 10, 5, 6]
+padding = 5
+margin  = 3
+gap     = 0
+
+[advanced]
+url=''
+origin=''
+userid=-1
