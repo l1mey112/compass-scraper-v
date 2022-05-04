@@ -2,6 +2,7 @@ import os
 import x.json2
 import term
 import time
+import math
 
 import toml
 
@@ -12,7 +13,7 @@ const (
 	vertical = "―"
 )
 
-const cfg = os.read_file('scraper-conf.toml') or {
+const cfg = os.read_file(os.resource_abs_path('scraper-conf.toml')) or {
 	println("Could not find scraper-conf.toml!")
 	exit(1)
 }
@@ -60,10 +61,24 @@ if origin == "-1" {
 	exit(1)
 }
 
+mut date_offset := 0
+
+if os.args.len > 1 {
+	// && os.args[1][..1] in ['+', '-']
+	if os.args[1][..1] == "+" {
+		date_offset = os.args[1][1..].int()
+	} else if os.args[1][..1] == "-" {
+		date_offset = -os.args[1][1..].int()
+	} else {
+		println("Invalid date offset! Usage: compass [+/-]<days>\nExample: compass +2 (2 days in the future)")
+		exit(1)
+	}
+}
+
 // get data
 // data := os.execute(os.read_file("curl.v.txt")?).output
 
-formatted_date := time.now().get_fmt_date_str(time.FormatDelimiter.hyphen,time.FormatDate.yyyymmdd)
+formatted_date := time.now().add_days(date_offset).get_fmt_date_str(time.FormatDelimiter.hyphen,time.FormatDate.yyyymmdd)
 //? 2022-05-03
 
 mut timer := time.StopWatch{}
@@ -116,7 +131,8 @@ gap := panel_cfg['gap'] or {
 //? TOML READING
 
 term.hide_cursor()
-term.clear()
+//term.clear()
+
 mut maxsize := 0
 for ss in 0..sizes.len{
 	maxsize += sizes[ss] + gap
@@ -175,14 +191,23 @@ for i, entry in entries {
 	formatted_time := first_digit_str + ":" + second_digit
 	//? ---- END
 	//? ['class','room','teacher']
-	event := entry.as_map()["longTitleWithoutTime"] or {
+	mut event := entry.as_map()["longTitleWithoutTime"] or {
 		panic("cannot find longTitleWithoutTime")
 	}.str().split(" - ")
+
+
+	// <strike>DPAI38</strike>&nbsp; CLA
+	if event[2].contains("strike") {
+		event[2] = event[2].split("; ")[1]
+		event[2] = term.yellow(term.bold(term.italic(event[2])))
+	}else {
+		event[2] = term.blue(event[2])
+	}
 	
 	put << term.bold(formatted_time)
 	put << term.red(event[0])
 	put << term.green(event[1])
-	put << term.blue(event[2])
+	put << event[2]
 
 	for j, en in put {
 		mut ex := 0
@@ -196,7 +221,20 @@ for i, entry in entries {
 }
 
 term.set_cursor_position(x: padding+2, y: padding+sizes.len+margin*2)
-print(term.bold("↪ $timer.elapsed()"))
+
+time_string := if math.abs(date_offset) == 1 {
+	if date_offset > 0 {
+	"- ${math.abs(date_offset)} day ahead"
+	}else {
+		"- ${math.abs(date_offset)} day past"
+	}
+} else if date_offset > 0 {
+	"- ${math.abs(date_offset)} days ahead"
+} else if date_offset < 0 {
+	"- ${math.abs(date_offset)} days past"
+} else {""}
+
+print(term.bold("↪ $timer.elapsed() $time_string"))
 
 term.set_cursor_position(x: 0, y: padding+sizes.len+margin*2+padding-1)
 term.show_cursor()
