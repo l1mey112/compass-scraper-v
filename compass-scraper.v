@@ -2,20 +2,28 @@ import os
 import x.json2
 import term
 import time
-import math
 
 import toml
 
 const user_agent = 'Mozilla/5.0 Gecko/20100101 Firefox/99.0'
-
 const (
 	horizontal = "│"
 	vertical = "―"
 )
 
-const cfg = os.read_file(os.resource_abs_path('scraper-conf.toml')) or {
-	println("Could not find scraper-conf.toml!")
-	exit(1)
+mut cfg := ""
+
+cfg = os.read_file(os.resource_abs_path('scraper-conf.toml')) or {
+	os.read_file(os.join_path_single(os.join_path(os.config_dir() or {
+		println("Could not find config directory!")
+		println(term.red("CHECK: "+ os.join_path_single(os.join_path(os.config_dir()?,"lmtools"),"scraper-conf.toml")))
+		exit(1)
+	},"lmtools"),"scraper-conf.toml")) or {
+		println("Could not find scraper-conf.toml!")
+		println(term.red("CHECK: "+ os.join_path_single(os.join_path(os.config_dir()?,"lmtools"),"scraper-conf.toml")))
+		println(term.red("CHECK: "+ os.resource_abs_path('scraper-conf.toml')))
+		exit(1)
+	}
 }
 
 doc :=  toml.parse_text(cfg) or { 
@@ -23,8 +31,10 @@ doc :=  toml.parse_text(cfg) or {
 	println(err)
 	exit(1)
 }
-cookies := doc.value('cookies').as_map().as_strings()
-if cookies.keys() != ['cpsdid','cpssid_cesis_catholic_edu_au','ASP_NET_SessionId','SamlSessionIndex'] {
+
+cookies := doc.value("cookies").as_map().as_strings()
+
+if cookies.keys() != ["cpsdid","cpssid_cesis_catholic_edu_au","ASP_NET_SessionId","SamlSessionIndex"] {
 	println("Could not find all required cookies! (check names, then check order)")
 	exit(1)
 }
@@ -61,29 +71,17 @@ if origin == "-1" {
 	exit(1)
 }
 
-mut date_offset := 0
-
-if os.args.len > 1 {
-	// && os.args[1][..1] in ['+', '-']
-	if os.args[1][..1] == "+" {
-		date_offset = os.args[1][1..].int()
-	} else if os.args[1][..1] == "-" {
-		date_offset = -os.args[1][1..].int()
-	} else {
-		println("Invalid date offset! Usage: compass [+/-]<days>\nExample: compass +2 (2 days in the future)")
-		exit(1)
-	}
-}
-
 // get data
 // data := os.execute(os.read_file("curl.v.txt")?).output
 
-formatted_date := time.now().add_days(date_offset).get_fmt_date_str(time.FormatDelimiter.hyphen,time.FormatDate.yyyymmdd)
+formatted_date := time.now().get_fmt_date_str(time.FormatDelimiter.hyphen,time.FormatDate.yyyymmdd)
 //? 2022-05-03
 
 mut timer := time.StopWatch{}
 timer.start()
+
 result := os.execute("curl --silent \'$url\' -X POST -H \'User-Agent: $user_agent\' -H \'Accept: */*\' -H \'Accept-Language: en-US,en;q=0.5\' -H \'Accept-Encoding: gzip, deflate, br\' -H \'Content-Type: application/json\' -H \'X-Requested-With: XMLHttpRequest\' -H \'Origin: $origin\' -H \'DNT: 1\' -H \'Connection: keep-alive\' -H \'Referer: $origin\' -H \'Cookie: cpsdid=${cookies["cpsdid"]}; cpssid_cesis.catholic.edu.au=${cookies["cpssid_cesis_catholic_edu_au"]}; ASP.NET_SessionId=${cookies["ASP_NET_SessionId"]}; SamlSessionIndex=${cookies["SamlSessionIndex"]}\' -H \'Sec-Fetch-Dest: empty\' -H \'Sec-Fetch-Mode: cors\' -H \'Sec-Fetch-Site: same-origin\' -H \'Sec-GPC: 1\' -H \'Pragma: no-cache\' -H \'Cache-Control: no-cache\' -H \'TE: trailers\' --data-raw \'{\"userId\":${user_id_str},\"homePage\":true,\"activityId\":null,\"locationId\":null,\"staffIds\":null,\"startDate\":\"${formatted_date}\",\"endDate\":\"${formatted_date}\",\"page\":1,\"start\":0,\"limit\":25}\' --compressed --output - ")
+
 if result.exit_code != 0 {
 	println("curl exited with an error!")
 	exit(1)
@@ -131,8 +129,7 @@ gap := panel_cfg['gap'] or {
 //? TOML READING
 
 term.hide_cursor()
-//term.clear()
-
+term.clear()
 mut maxsize := 0
 for ss in 0..sizes.len{
 	maxsize += sizes[ss] + gap
@@ -221,20 +218,7 @@ for i, entry in entries {
 }
 
 term.set_cursor_position(x: padding+2, y: padding+sizes.len+margin*2)
-
-time_string := if math.abs(date_offset) == 1 {
-	if date_offset > 0 {
-	"- ${math.abs(date_offset)} day ahead"
-	}else {
-		"- ${math.abs(date_offset)} day past"
-	}
-} else if date_offset > 0 {
-	"- ${math.abs(date_offset)} days ahead"
-} else if date_offset < 0 {
-	"- ${math.abs(date_offset)} days past"
-} else {""}
-
-print(term.bold("↪ $timer.elapsed() $time_string"))
+print(term.bold("↪ $timer.elapsed()"))
 
 term.set_cursor_position(x: 0, y: padding+sizes.len+margin*2+padding-1)
 term.show_cursor()
